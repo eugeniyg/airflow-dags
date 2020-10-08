@@ -15,32 +15,56 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Example LatestOnlyOperator and TriggerRule interactions
-"""
 
-# [START example]
-import datetime as dt
+"""Example DAG demonstrating the usage of the SubDagOperator."""
 
+# [START example_subdag_operator]
 from airflow import DAG
+from airflow.example_dags.subdags.subdag import subdag
 from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.latest_only import LatestOnlyOperator
+from airflow.operators.subdag_operator import SubDagOperator
 from airflow.utils.dates import days_ago
-from airflow.utils.trigger_rule import TriggerRule
+
+DAG_NAME = 'example_subdag_operator'
+
+args = {
+    'owner': 'airflow',
+}
 
 dag = DAG(
-    dag_id='latest_only_with_trigger',
-    schedule_interval=dt.timedelta(hours=4),
+    dag_id=DAG_NAME,
+    default_args=args,
     start_date=days_ago(2),
+    schedule_interval="@once",
     tags=['example']
 )
 
-latest_only = LatestOnlyOperator(task_id='latest_only', dag=dag)
-task1 = DummyOperator(task_id='task1', dag=dag)
-task2 = DummyOperator(task_id='task2', dag=dag)
-task3 = DummyOperator(task_id='task3', dag=dag)
-task4 = DummyOperator(task_id='task4', dag=dag, trigger_rule=TriggerRule.ALL_DONE)
+start = DummyOperator(
+    task_id='start',
+    dag=dag,
+)
 
-latest_only >> task1 >> [task3, task4]
-task2 >> [task3, task4]
-# [END example]
+section_1 = SubDagOperator(
+    task_id='section-1',
+    subdag=subdag(DAG_NAME, 'section-1', args),
+    dag=dag,
+)
+
+some_other_task = DummyOperator(
+    task_id='some-other-task',
+    dag=dag,
+)
+
+section_2 = SubDagOperator(
+    task_id='section-2',
+    subdag=subdag(DAG_NAME, 'section-2', args),
+    dag=dag,
+)
+
+end = DummyOperator(
+    task_id='end',
+    dag=dag,
+)
+
+start >> section_1 >> some_other_task >> section_2 >> end
+# [END example_subdag_operator]

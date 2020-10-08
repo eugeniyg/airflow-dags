@@ -15,32 +15,39 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Example LatestOnlyOperator and TriggerRule interactions
-"""
 
-# [START example]
-import datetime as dt
-
+"""Example DAG demonstrating the usage of the ShortCircuitOperator."""
 from airflow import DAG
+from airflow.models.baseoperator import chain
 from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.latest_only import LatestOnlyOperator
-from airflow.utils.dates import days_ago
-from airflow.utils.trigger_rule import TriggerRule
+from airflow.operators.python import ShortCircuitOperator
+from airflow.utils import dates
+
+args = {
+    'owner': 'airflow',
+}
 
 dag = DAG(
-    dag_id='latest_only_with_trigger',
-    schedule_interval=dt.timedelta(hours=4),
-    start_date=days_ago(2),
-    tags=['example']
+    dag_id='example_short_circuit_operator',
+    default_args=args,
+    start_date=dates.days_ago(2),
+    tags=['example'],
 )
 
-latest_only = LatestOnlyOperator(task_id='latest_only', dag=dag)
-task1 = DummyOperator(task_id='task1', dag=dag)
-task2 = DummyOperator(task_id='task2', dag=dag)
-task3 = DummyOperator(task_id='task3', dag=dag)
-task4 = DummyOperator(task_id='task4', dag=dag, trigger_rule=TriggerRule.ALL_DONE)
+cond_true = ShortCircuitOperator(
+    task_id='condition_is_True',
+    python_callable=lambda: True,
+    dag=dag,
+)
 
-latest_only >> task1 >> [task3, task4]
-task2 >> [task3, task4]
-# [END example]
+cond_false = ShortCircuitOperator(
+    task_id='condition_is_False',
+    python_callable=lambda: False,
+    dag=dag,
+)
+
+ds_true = [DummyOperator(task_id='true_' + str(i), dag=dag) for i in [1, 2]]
+ds_false = [DummyOperator(task_id='false_' + str(i), dag=dag) for i in [1, 2]]
+
+chain(cond_true, *ds_true)
+chain(cond_false, *ds_false)
